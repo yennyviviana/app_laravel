@@ -1,0 +1,259 @@
+¿Qué es un CRUD?
+CRUD significa:
+
+Create: Crear registros
+
+Read: Leer registros
+
+Update: Actualizar registros
+
+Delete: Eliminar registros
+
+Vamos a hacerlo para un modelo llamado Empleado. Lo veremos con migraciones, modelo, controlador, vistas y rutas.
+
+✅ PASO 1: Crear la migración, modelo y controlador
+bash
+Copiar
+Editar
+php artisan make:model Empleado -mc
+Este comando crea:
+
+Modelo Empleado
+
+Controlador EmpleadoController
+
+Migración create_empleados_table
+
+✅ PASO 2: Editar la migración
+Abre el archivo en database/migrations/xxxx_xx_xx_create_empleados_table.php
+
+public function up()
+{
+    Schema::create('empleados', function (Blueprint $table) {
+        $table->id();
+        $table->string('nombre');
+        $table->string('correo')->unique();
+        $table->string('telefono')->nullable();
+        $table->string('cargo');
+        $table->decimal('salario', 10, 2);
+        $table->timestamps();
+    });
+}
+Ejecuta la migración:
+bash
+Copiar
+Editar
+php artisan migrate
+✅ PASO 3: Definir el modelo Empleado
+En app/Models/Empleado.php, define los atributos que se pueden llenar con datos:
+
+php
+Copiar
+Editar
+protected $fillable = ['nombre', 'correo', 'telefono', 'cargo', 'salario'];
+✅ PASO 4: Agregar rutas
+En routes/web.php:
+
+php
+Copiar
+Editar
+use App\Http\Controllers\EmpleadoController;
+
+Route::middleware(['auth'])->group(function () {
+    Route::resource('empleados', EmpleadoController::class);
+});
+Esto crea automáticamente las rutas necesarias para el CRUD:
+
+/empleados (GET) → lista
+
+/empleados/create (GET) → formulario crear
+
+/empleados (POST) → guardar nuevo
+
+/empleados/{id}/edit (GET) → formulario editar
+
+/empleados/{id} (PUT) → actualizar
+
+/empleados/{id} (DELETE) → eliminar
+
+✅ PASO 5: Lógica en EmpleadoController
+Abre app/Http/Controllers/EmpleadoController.php y edita con lo siguiente:
+
+php
+Copiar
+Editar
+use App\Models\Empleado;
+use Illuminate\Http\Request;
+
+class EmpleadoController extends Controller
+{
+    public function index()
+    {
+        $empleados = Empleado::all();
+        return view('empleados.index', compact('empleados'));
+    }
+
+    public function create()
+    {
+        return view('empleados.create');
+    }
+
+    public function store(Request $request)
+    {
+        $request->validate([
+            'nombre' => 'required',
+            'correo' => 'required|email|unique:empleados',
+            'telefono' => 'nullable',
+            'cargo' => 'required',
+            'salario' => 'required|numeric',
+        ]);
+
+        Empleado::create($request->all());
+        return redirect()->route('empleados.index')->with('success', 'Empleado creado correctamente');
+    }
+
+    public function edit(Empleado $empleado)
+    {
+        return view('empleados.edit', compact('empleado'));
+    }
+
+    public function update(Request $request, Empleado $empleado)
+    {
+        $request->validate([
+            'nombre' => 'required',
+            'correo' => 'required|email|unique:empleados,correo,' . $empleado->id,
+            'telefono' => 'nullable',
+            'cargo' => 'required',
+            'salario' => 'required|numeric',
+        ]);
+
+        $empleado->update($request->all());
+        return redirect()->route('empleados.index')->with('success', 'Empleado actualizado');
+    }
+
+    public function destroy(Empleado $empleado)
+    {
+        $empleado->delete();
+        return redirect()->route('empleados.index')->with('success', 'Empleado eliminado');
+    }
+}
+✅ PASO 6: Crear las vistas
+Crea una carpeta: resources/views/empleados/
+
+🟩 index.blade.php
+blade
+Copiar
+Editar
+@extends('layouts.app')
+
+@section('content')
+<div class="container">
+    <h2>Lista de Empleados</h2>
+    <a href="{{ route('empleados.create') }}" class="btn btn-primary mb-3">Nuevo Empleado</a>
+
+    @if(session('success'))
+        <div class="alert alert-success">{{ session('success') }}</div>
+    @endif
+
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Nombre</th><th>Correo</th><th>Teléfono</th><th>Cargo</th><th>Salario</th><th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+        @foreach($empleados as $empleado)
+            <tr>
+                <td>{{ $empleado->nombre }}</td>
+                <td>{{ $empleado->correo }}</td>
+                <td>{{ $empleado->telefono }}</td>
+                <td>{{ $empleado->cargo }}</td>
+                <td>${{ $empleado->salario }}</td>
+                <td>
+                    <a href="{{ route('empleados.edit', $empleado) }}" class="btn btn-sm btn-warning">Editar</a>
+                    <form action="{{ route('empleados.destroy', $empleado) }}" method="POST" style="display:inline;">
+                        @csrf @method('DELETE')
+                        <button class="btn btn-sm btn-danger" onclick="return confirm('¿Seguro?')">Eliminar</button>
+                    </form>
+                </td>
+            </tr>
+        @endforeach
+        </tbody>
+    </table>
+</div>
+@endsection
+🟩 create.blade.php y edit.blade.php
+Puedes compartir el formulario, así:
+
+form.blade.php
+blade
+Copiar
+Editar
+@csrf
+<div class="mb-3">
+    <label>Nombre</label>
+    <input type="text" name="nombre" class="form-control" value="{{ old('nombre', $empleado->nombre ?? '') }}" required>
+</div>
+
+<div class="mb-3">
+    <label>Correo</label>
+    <input type="email" name="correo" class="form-control" value="{{ old('correo', $empleado->correo ?? '') }}" required>
+</div>
+
+<div class="mb-3">
+    <label>Teléfono</label>
+    <input type="text" name="telefono" class="form-control" value="{{ old('telefono', $empleado->telefono ?? '') }}">
+</div>
+
+<div class="mb-3">
+    <label>Cargo</label>
+    <input type="text" name="cargo" class="form-control" value="{{ old('cargo', $empleado->cargo ?? '') }}" required>
+</div>
+
+<div class="mb-3">
+    <label>Salario</label>
+    <input type="number" step="0.01" name="salario" class="form-control" value="{{ old('salario', $empleado->salario ?? '') }}" required>
+</div>
+
+<button class="btn btn-success">Guardar</button>
+create.blade.php
+blade
+Copiar
+Editar
+@extends('layouts.app')
+
+@section('content')
+<div class="container">
+    <h2>Crear Empleado</h2>
+    <form method="POST" action="{{ route('empleados.store') }}">
+        @include('empleados.form')
+    </form>
+</div>
+@endsection
+edit.blade.php
+blade
+Copiar
+Editar
+@extends('layouts.app')
+
+@section('content')
+<div class="container">
+    <h2>Editar Empleado</h2>
+    <form method="POST" action="{{ route('empleados.update', $empleado) }}">
+        @method('PUT')
+        @include('empleados.form', ['empleado' => $empleado])
+    </form>
+</div>
+@endsection
+✅ PASO 7: Verifica y prueba
+Ingresa con tu cuenta
+
+Accede a /empleados
+
+Crea, edita, elimina empleados
+
+
+
+
+
+
